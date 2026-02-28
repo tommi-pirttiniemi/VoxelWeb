@@ -11,14 +11,20 @@ const MAX_VOXEL_STEPS: i32 = 27;
 const EPS: f32 = 1e-6;
 
 // ── Uniforms ─────────────────────────────────────────────────────────────────
+// Total: 144 bytes
 
 struct Uniforms {
-    mvp:          mat4x4f,
+    mvp:          mat4x4f,        // offset   0 (64 bytes)
     // xyz = grid world-space min, w = chunkWorldSize
-    gridMin:      vec4f,
+    gridMin:      vec4f,          // offset  64
     // xyz = chunk grid dimensions (float), w = chunkWorldSizeInv
-    gridDims:     vec4f,
-    cameraPos:    vec4f,  // xyz = world pos, w unused
+    gridDims:     vec4f,          // offset  80
+    cameraPos:    vec4f,          // offset  96  xyz = world pos, w unused
+    lightDir:     vec4f,          // offset 112  xyz = sun dir (normalized), w = ambient strength
+    metallic:     f32,            // offset 128
+    smoothness:   f32,            // offset 132
+    emissive:     u32,            // offset 136  0=off 1=on
+    paletteMode:  u32,            // offset 140  0=Full565 1=PICO8 2=C64 3=EGA 4=Gray8 5=Gray32 6=Web216
 };
 
 // ── Storage buffers ───────────────────────────────────────────────────────────
@@ -100,6 +106,109 @@ fn decodeRGB565(c: u32) -> vec3f {
 
 fn srgbToLinear(c: vec3f) -> vec3f {
     return c * c * (c * 0.2 + 0.8);
+}
+
+// ── Palette quantization ──────────────────────────────────────────────────────
+// Palettes are in sRGB [0..1] space, matching voxel colors from decodeRGB565.
+
+fn quantizePico8(c: vec3f) -> vec3f {
+    var pal = array<vec3f, 16>(
+        vec3f(0.0000, 0.0000, 0.0000), vec3f(0.1137, 0.1686, 0.3255),
+        vec3f(0.4941, 0.1451, 0.3255), vec3f(0.0000, 0.5294, 0.3176),
+        vec3f(0.6706, 0.3216, 0.2118), vec3f(0.3725, 0.3412, 0.3098),
+        vec3f(0.7608, 0.7647, 0.7804), vec3f(1.0000, 0.9451, 0.9098),
+        vec3f(1.0000, 0.0000, 0.3020), vec3f(1.0000, 0.6392, 0.0000),
+        vec3f(1.0000, 0.9255, 0.1529), vec3f(0.0000, 0.8941, 0.2118),
+        vec3f(0.1608, 0.6784, 1.0000), vec3f(0.5137, 0.4627, 0.6118),
+        vec3f(1.0000, 0.4667, 0.6588), vec3f(1.0000, 0.8000, 0.6667),
+    );
+    var best = pal[0];
+    var bestD = dot(c - pal[0], c - pal[0]);
+    for (var i = 1u; i < 16u; i += 1u) {
+        let d = dot(c - pal[i], c - pal[i]);
+        if d < bestD { bestD = d; best = pal[i]; }
+    }
+    return best;
+}
+
+fn quantizeC64(c: vec3f) -> vec3f {
+    var pal = array<vec3f, 16>(
+        vec3f(0.0000, 0.0000, 0.0000), vec3f(1.0000, 1.0000, 1.0000),
+        vec3f(0.5333, 0.2235, 0.1961), vec3f(0.4039, 0.7137, 0.7412),
+        vec3f(0.5451, 0.2471, 0.5882), vec3f(0.3333, 0.6275, 0.2863),
+        vec3f(0.2510, 0.1922, 0.5529), vec3f(0.7490, 0.8078, 0.4471),
+        vec3f(0.5451, 0.3294, 0.1608), vec3f(0.3412, 0.2588, 0.0000),
+        vec3f(0.7216, 0.4118, 0.3843), vec3f(0.3137, 0.3137, 0.3137),
+        vec3f(0.4706, 0.4706, 0.4706), vec3f(0.5804, 0.8784, 0.5373),
+        vec3f(0.4706, 0.4118, 0.7686), vec3f(0.6235, 0.6235, 0.6235),
+    );
+    var best = pal[0];
+    var bestD = dot(c - pal[0], c - pal[0]);
+    for (var i = 1u; i < 16u; i += 1u) {
+        let d = dot(c - pal[i], c - pal[i]);
+        if d < bestD { bestD = d; best = pal[i]; }
+    }
+    return best;
+}
+
+fn quantizeEGA(c: vec3f) -> vec3f {
+    var pal = array<vec3f, 16>(
+        vec3f(0.0000, 0.0000, 0.0000), vec3f(0.0000, 0.0000, 0.6667),
+        vec3f(0.0000, 0.6667, 0.0000), vec3f(0.0000, 0.6667, 0.6667),
+        vec3f(0.6667, 0.0000, 0.0000), vec3f(0.6667, 0.0000, 0.6667),
+        vec3f(0.6667, 0.3333, 0.0000), vec3f(0.6667, 0.6667, 0.6667),
+        vec3f(0.3333, 0.3333, 0.3333), vec3f(0.3333, 0.3333, 1.0000),
+        vec3f(0.3333, 1.0000, 0.3333), vec3f(0.3333, 1.0000, 1.0000),
+        vec3f(1.0000, 0.3333, 0.3333), vec3f(1.0000, 0.3333, 1.0000),
+        vec3f(1.0000, 1.0000, 0.3333), vec3f(1.0000, 1.0000, 1.0000),
+    );
+    var best = pal[0];
+    var bestD = dot(c - pal[0], c - pal[0]);
+    for (var i = 1u; i < 16u; i += 1u) {
+        let d = dot(c - pal[i], c - pal[i]);
+        if d < bestD { bestD = d; best = pal[i]; }
+    }
+    return best;
+}
+
+fn applyPalette(c: vec3f, mode: u32) -> vec3f {
+    switch mode {
+        case 1u: { return quantizePico8(c); }
+        case 2u: { return quantizeC64(c); }
+        case 3u: { return quantizeEGA(c); }
+        case 4u: {
+            // Gray 8 (8 steps)
+            let g = round(dot(c, vec3f(0.299, 0.587, 0.114)) * 7.0) / 7.0;
+            return vec3f(g);
+        }
+        case 5u: {
+            // Gray 32 (32 steps)
+            let g = round(dot(c, vec3f(0.299, 0.587, 0.114)) * 31.0) / 31.0;
+            return vec3f(g);
+        }
+        case 6u: {
+            // Web 216: 6 steps per channel (0, 51, 102, 153, 204, 255)
+            return round(c * 5.0) / 5.0;
+        }
+        default: { return c; }
+    }
+}
+
+// ── Lighting ──────────────────────────────────────────────────────────────────
+// Blinn-Phong with metallic/dielectric workflow.
+// Reads metallic, smoothness, and ambient from uniforms.
+
+fn litColor(albedo: vec3f, N: vec3f, L: vec3f, V: vec3f) -> vec3f {
+    let H        = normalize(L + V);
+    let ndotl    = max(dot(N, L), 0.0);
+    let ndoth    = max(dot(N, H), 0.0);
+    let specPow  = exp2(uni.smoothness * 10.0 + 1.0);
+    let F0       = mix(vec3f(0.04), albedo, uni.metallic);
+    let diff     = albedo * (1.0 - uni.metallic) * ndotl;
+    let spec     = select(vec3f(0.0), F0 * pow(ndoth, specPow), ndotl > 0.0);
+    let amb      = uni.lightDir.w;
+    // Scale direct light by (1-ambient) so the total at full ndotl ≈ albedo
+    return albedo * amb + (diff + spec) * (1.0 - amb);
 }
 
 // ── Inner voxel DDA ──────────────────────────────────────────────────────────
@@ -236,11 +345,21 @@ fn fs_main(in: VSOut, @builtin(front_facing) isFront: bool) -> FSOut {
                     let clipPos = uni.mvp * vec4f(hPosWS, 1.0);
                     out.depth   = clipPos.z / clipPos.w;
 
-                    // Simple Lambertian + ambient lighting
-                    let lightDir = normalize(vec3f(0.5, 1.0, 0.3));
-                    let albedo   = srgbToLinear(vHit.color);
-                    let ndotl    = max(dot(vHit.normal, lightDir), 0.0);
-                    let lit      = albedo * (0.25 + ndotl * 0.75);
+                    // Palette (applied in sRGB space, matching Unity DecodeVoxelColor)
+                    let paletteColor = applyPalette(vHit.color, uni.paletteMode);
+
+                    // Convert to linear for lighting
+                    let albedo = srgbToLinear(paletteColor);
+
+                    // PBR Blinn-Phong lighting
+                    let L   = normalize(uni.lightDir.xyz);
+                    let V   = normalize(camPos - hPosWS);
+                    var lit = litColor(albedo, vHit.normal, L, V);
+
+                    // Emissive: voxel colour acts as self-emission (×4 matching Unity)
+                    if uni.emissive != 0u {
+                        lit = lit + albedo * 4.0;
+                    }
 
                     out.color = vec4f(lit, 1.0);
                     return out;
