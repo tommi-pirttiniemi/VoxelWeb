@@ -257,5 +257,8 @@ fn fs_main(in: VSOut, @builtin(front_facing) isFront: bool) -> FSOut {
         }
     }
 
+    // No voxel hit — discard fragment.
+    // Explicit return required by WGSL control flow rules even though discard terminates.
     discard;
+    return out;
 }
