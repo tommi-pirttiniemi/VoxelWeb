@@ -17,7 +17,7 @@ export class OrbitCamera {
     window.addEventListener('mouseup',   () => { this.dragging = false; });
     window.addEventListener('mousemove', e => {
       if (!this.dragging) return;
-      this.yaw   += (e.clientX - this.lastX) * 0.005;
+      this.yaw   -= (e.clientX - this.lastX) * 0.005;
       this.pitch  = Math.max(-1.4, Math.min(1.4, this.pitch + (e.clientY - this.lastY) * 0.005));
       this.lastX = e.clientX; this.lastY = e.clientY;
     });
