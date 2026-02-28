@@ -33,7 +33,7 @@ export class OrbitCamera {
     canvas.addEventListener('touchend',   () => { this.dragging = false; });
     canvas.addEventListener('touchmove',  e => {
       if (e.touches.length === 1 && this.dragging) {
-        this.yaw   += (e.touches[0].clientX - this.lastX) * 0.005;
+        this.yaw   -= (e.touches[0].clientX - this.lastX) * 0.005;
         this.pitch  = Math.max(-1.4, Math.min(1.4, this.pitch + (e.touches[0].clientY - this.lastY) * 0.005));
         this.lastX = e.touches[0].clientX; this.lastY = e.touches[0].clientY;
       }

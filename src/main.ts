@@ -51,21 +51,22 @@ async function main() {
     loadBtn.disabled = true;
     statusEl.textContent = 'Parsing GLB…';
     try {
-      const mesh = parseGlb(buffer);
-      statusEl.textContent = `Voxelizing (${mesh.indices.length / 3 | 0} triangles)…`;
-      const grid   = await voxelizeMesh(device, mesh, 64);
+      const primitives = parseGlb(buffer);
+      const totalTris  = primitives.reduce((s, p) => s + p.indices.length / 3, 0);
+      statusEl.textContent = `Voxelizing (${primitives.length} primitive(s), ${totalTris | 0} triangles)…`;
+      const grid   = await voxelizeMesh(device, primitives, 64);
       statusEl.textContent = 'Packing chunks…';
       const chunks = packChunks(grid.data, grid.dx, grid.dy, grid.dz);
       statusEl.textContent = 'Building pipeline…';
       await renderer.loadScene(grid, chunks);
 
-      // Auto-frame camera
-      const span = grid.voxelSize * grid.dx;
-      camera.dist   = span * 1.8;
+      // Auto-frame camera on the grid centre
+      const maxSpan = Math.max(grid.dx, grid.dy, grid.dz) * grid.voxelSize;
+      camera.dist   = maxSpan * 1.8;
       camera.target = [
-        grid.gridMin[0] + span / 2,
-        grid.gridMin[1] + span / 2,
-        grid.gridMin[2] + span / 2,
+        grid.gridMin[0] + grid.dx * grid.voxelSize / 2,
+        grid.gridMin[1] + grid.dy * grid.voxelSize / 2,
+        grid.gridMin[2] + grid.dz * grid.voxelSize / 2,
       ];
       hasScene = true;
       const filled = grid.data.filter(v => v > 0).length;
