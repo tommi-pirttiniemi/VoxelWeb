@@ -134,10 +134,10 @@ export async function voxelizeMesh(
     ],
   });
 
-  // ── Workgroup counts for 8³ kernels ───────────────────────────────────────
-  const wgX = Math.ceil(dx / 8);
-  const wgY = Math.ceil(dy / 8);
-  const wgZ = Math.ceil(dz / 8);
+  // ── Workgroup counts for 4³ kernels (4×4×4=64 ≤ 256 default limit) ───────
+  const wgX = Math.ceil(dx / 4);
+  const wgY = Math.ceil(dy / 4);
+  const wgZ = Math.ceil(dz / 4);
 
   // ── Dispatch: initializeGrid ───────────────────────────────────────────────
   {

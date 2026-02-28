@@ -99,7 +99,7 @@ fn sampleTex(uv: vec2f) -> vec4f {
 
 // ── KERNEL 1: InitializeGrid ──────────────────────────────────────────────────
 
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(4, 4, 4)
 fn initializeGrid(@builtin(global_invocation_id) id: vec3u) {
     let gs = params.gridSize;
     if any(id >= gs) { return; }
@@ -208,7 +208,7 @@ fn voxelizeSurface(@builtin(global_invocation_id) id: vec3u) {
 // Thresholds voxels by hit count. Below threshold → Air. Above → Shell with
 // average or mode color packed into colorPacked (RGBA8888).
 
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(4, 4, 4)
 fn resolveAverage(@builtin(global_invocation_id) id: vec3u) {
     let gs = params.gridSize;
     if any(id >= gs) { return; }
