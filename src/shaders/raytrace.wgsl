@@ -183,15 +183,15 @@ fn fs_main(in: VSOut, @builtin(front_facing) isFront: bool) -> FSOut {
     let isCameraInside = all(camPosCU >= vec3f(0.0)) && all(camPosCU <= gridDims);
 
     // Discard back faces when outside, front faces when inside
-    if  isCameraInside && isFront  { discard; }
-    if !isCameraInside && !isFront { discard; }
+    if  isCameraInside && isFront  { discard; return out; }
+    if !isCameraInside && !isFront { discard; return out; }
 
     let rayDirWS  = normalize(in.worldPos - camPos);
     let rayDirCU  = rayDirWS * chunkWorldSizeInv;
     let rayDirInv = 1.0 / (rayDirCU + EPS * sign(rayDirCU));
 
     let assetHit = rayBoxIntersect(camPosCU, rayDirInv, vec3f(0.0), gridDims);
-    if assetHit.x > assetHit.y { discard; }
+    if assetHit.x > assetHit.y { discard; return out; }
 
     let gDims = vec3i(gridDims);
     var sPos  = camPosCU + rayDirCU * assetHit.x;

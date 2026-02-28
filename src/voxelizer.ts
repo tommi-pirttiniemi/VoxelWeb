@@ -86,7 +86,7 @@ export async function voxelizeMesh(
   // ── Voxel grid buffer ─────────────────────────────────────────────────────
   const gridBuf = device.createBuffer({
     size: totalVoxels * VOXEL_STRIDE,
-    usage: GPUBufferUsage.STORAGE,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
   });
 
   // ── Compile shader (once) ─────────────────────────────────────────────────
