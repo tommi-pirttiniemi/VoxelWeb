@@ -49,13 +49,13 @@ export async function voxelizeMesh(
     }
   }
 
-  // Uniform voxel size: largest axis = resolution voxels
-  const span      = Math.max(mxx - mnx, mxy - mny, mxz - mnz) * 1.005; // tiny margin
+  // Uniform voxel size: largest axis = resolution voxels (matches Unity VOXEL_PITCH logic)
+  const span      = Math.max(mxx - mnx, mxy - mny, mxz - mnz);
   const voxelSize = span / resolution;
-  const cx = (mnx + mxx) / 2, cy = (mny + mxy) / 2, cz = (mnz + mxz) / 2;
-  const gridMin: [number, number, number] = [cx - span / 2, cy - span / 2, cz - span / 2];
 
-  // Per-axis grid size (may be non-cubic for non-square meshes)
+  // gridMin = actual mesh bounding box min (like Unity's bounds.min)
+  // dx/dy/dz = per-axis voxel counts derived from mesh extents
+  const gridMin: [number, number, number] = [mnx, mny, mnz];
   const dx = Math.max(1, Math.ceil((mxx - mnx) / voxelSize));
   const dy = Math.max(1, Math.ceil((mxy - mny) / voxelSize));
   const dz = Math.max(1, Math.ceil((mxz - mnz) / voxelSize));

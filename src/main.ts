@@ -62,11 +62,11 @@ async function main() {
 
       // Auto-frame camera on the grid centre
       const maxSpan = Math.max(grid.dx, grid.dy, grid.dz) * grid.voxelSize;
-      camera.dist   = maxSpan * 1.8;
+      camera.dist   = maxSpan * 2.0;
       camera.target = [
-        grid.gridMin[0] + grid.dx * grid.voxelSize / 2,
-        grid.gridMin[1] + grid.dy * grid.voxelSize / 2,
-        grid.gridMin[2] + grid.dz * grid.voxelSize / 2,
+        grid.gridMin[0] + (grid.dx * grid.voxelSize) / 2,
+        grid.gridMin[1] + (grid.dy * grid.voxelSize) / 2,
+        grid.gridMin[2] + (grid.dz * grid.voxelSize) / 2,
       ];
       hasScene = true;
       const filled = grid.data.filter(v => v > 0).length;
