@@ -172,6 +172,8 @@ struct FSOut {
 
 @fragment
 fn fs_main(in: VSOut, @builtin(front_facing) isFront: bool) -> FSOut {
+    var out: FSOut;  // declare first so all early returns can use it
+
     let chunkWorldSize    = uni.gridMin.w;
     let chunkWorldSizeInv = uni.gridDims.w;
     let gridMin           = uni.gridMin.xyz;
@@ -205,8 +207,6 @@ fn fs_main(in: VSOut, @builtin(front_facing) isFront: bool) -> FSOut {
         select(1e30, (nBounds.y - sPos.y) / rayDirCU.y, abs(rayDirCU.y) > EPS),
         select(1e30, (nBounds.z - sPos.z) / rayDirCU.z, abs(rayDirCU.z) > EPS),
     );
-
-    var out: FSOut;
 
     for (var i = 0; i < MAX_CHUNK_STEPS; i += 1) {
         if u32(gPos.x) >= u32(gDims.x) || u32(gPos.y) >= u32(gDims.y) || u32(gPos.z) >= u32(gDims.z) { break; }
