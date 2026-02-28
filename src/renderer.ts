@@ -69,6 +69,17 @@ export class VoxelRenderer {
 
     // ── Shader + pipeline ─────────────────────────────────────────────────
     const module = device.createShaderModule({ code: raytraceWgsl });
+
+    // Surface actual WGSL compile errors (if any) before pipeline creation
+    const info = await module.getCompilationInfo();
+    for (const msg of info.messages) {
+      const tag = msg.type === 'error' ? '🔴 WGSL' : '⚠️ WGSL';
+      console.error(`${tag} line ${msg.lineNum}:${msg.linePos} — ${msg.message}`);
+    }
+    if (info.messages.some(m => m.type === 'error')) {
+      throw new Error('WGSL compilation failed — see console for details');
+    }
+
     this.pipeline = await device.createRenderPipelineAsync({
       layout: 'auto',
       vertex:   { module, entryPoint: 'vs_main' },
