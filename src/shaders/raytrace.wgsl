@@ -31,38 +31,33 @@ struct Uniforms {
 
 // ── Vertex stage ──────────────────────────────────────────────────────────────
 
-// Unit cube vertices for a bounding-box proxy mesh.
-// positionOS in [-0.5, 0.5]; the vertex shader maps it to the grid AABB.
-const CUBE_POS = array<vec3f, 8>(
-    vec3f(-0.5, -0.5, -0.5),
-    vec3f( 0.5, -0.5, -0.5),
-    vec3f(-0.5,  0.5, -0.5),
-    vec3f( 0.5,  0.5, -0.5),
-    vec3f(-0.5, -0.5,  0.5),
-    vec3f( 0.5, -0.5,  0.5),
-    vec3f(-0.5,  0.5,  0.5),
-    vec3f( 0.5,  0.5,  0.5),
-);
-
-// 12 triangles × 3 indices = 36
-const CUBE_IDX = array<u32, 36>(
-    0u,2u,1u, 1u,2u,3u,   // -Z
-    4u,5u,6u, 5u,7u,6u,   // +Z
-    0u,1u,4u, 1u,5u,4u,   // -Y
-    2u,6u,3u, 3u,6u,7u,   // +Y
-    0u,4u,2u, 2u,4u,6u,   // -X
-    1u,3u,5u, 3u,7u,5u,   // +X
-);
-
 struct VSOut {
-    @builtin(position)  posH:     vec4f,
-    @location(0)        worldPos: vec3f,
-};
+    @builtin(position) posH:     vec4f,
+    @location(0)       worldPos: vec3f,
+}
 
+// Unit cube — arrays inside function so runtime indexing is safe
 @vertex
 fn vs_main(@builtin(vertex_index) vi: u32) -> VSOut {
-    let idx     = CUBE_IDX[vi];
-    let posUnit = CUBE_POS[idx];
+    var cubeIdx = array<u32, 36>(
+        0u,2u,1u, 1u,2u,3u,   // -Z
+        4u,5u,6u, 5u,7u,6u,   // +Z
+        0u,1u,4u, 1u,5u,4u,   // -Y
+        2u,6u,3u, 3u,6u,7u,   // +Y
+        0u,4u,2u, 2u,4u,6u,   // -X
+        1u,3u,5u, 3u,7u,5u,   // +X
+    );
+    var cubePos = array<vec3f, 8>(
+        vec3f(-0.5, -0.5, -0.5),
+        vec3f( 0.5, -0.5, -0.5),
+        vec3f(-0.5,  0.5, -0.5),
+        vec3f( 0.5,  0.5, -0.5),
+        vec3f(-0.5, -0.5,  0.5),
+        vec3f( 0.5, -0.5,  0.5),
+        vec3f(-0.5,  0.5,  0.5),
+        vec3f( 0.5,  0.5,  0.5),
+    );
+    let posUnit = cubePos[cubeIdx[vi]];
 
     let bMin = uni.gridMin.xyz - 0.001;
     let bMax = uni.gridMin.xyz + uni.gridDims.xyz * uni.gridMin.w + 0.001;
@@ -87,10 +82,13 @@ fn rayBoxIntersect(ro: vec3f, rdi: vec3f, bMin: vec3f, bMax: vec3f) -> vec2f {
     );
 }
 
-fn unpackAABB(aabb: u32) -> array<vec3i, 2> {
-    let mn = vec3i(i32(aabb & 7u), i32((aabb >> 3u) & 7u), i32((aabb >> 6u) & 7u));
-    let mx = vec3i(i32((aabb >> 9u) & 7u), i32((aabb >> 12u) & 7u), i32((aabb >> 15u) & 7u));
-    return array<vec3i, 2>(mn, mx);
+struct ChunkAABB { mn: vec3i, mx: vec3i }
+
+fn unpackAABB(aabb: u32) -> ChunkAABB {
+    return ChunkAABB(
+        vec3i(i32(aabb        & 7u), i32((aabb >> 3u)  & 7u), i32((aabb >> 6u)  & 7u)),
+        vec3i(i32((aabb >> 9u) & 7u), i32((aabb >> 12u) & 7u), i32((aabb >> 15u) & 7u)),
+    );
 }
 
 fn decodeRGB565(c: u32) -> vec3f {
@@ -137,8 +135,8 @@ fn rayMarchChunk(
     var cT = 0.0;
     var ha = hitAxis;
 
-    for (var i = 0; i < MAX_VOXEL_STEPS; i++) {
-        if (any(vPos < aabbMin) || any(vPos > aabbMax)) { break; }
+    for (var i = 0; i < MAX_VOXEL_STEPS; i += 1) {
+        if any(vPos < aabbMin) || any(vPos > aabbMax) { break; }
 
         let pVal = voxelBuffer[cOffset + u32(vPos.x) + (u32(vPos.y) << 3u) + (u32(vPos.z) << 6u)];
         if pVal > 0u {
@@ -155,11 +153,11 @@ fn rayMarchChunk(
         }
 
         if tMax.x < tMax.y && tMax.x < tMax.z {
-            cT += tMax.x; vPos.x += rayStep.x; tMax.x += tDelta.x; ha = 0;
+            cT = tMax.x; vPos.x += rayStep.x; tMax.x += tDelta.x; ha = 0;
         } else if tMax.y < tMax.z {
-            cT += tMax.y; vPos.y += rayStep.y; tMax.y += tDelta.y; ha = 1;
+            cT = tMax.y; vPos.y += rayStep.y; tMax.y += tDelta.y; ha = 1;
         } else {
-            cT += tMax.z; vPos.z += rayStep.z; tMax.z += tDelta.z; ha = 2;
+            cT = tMax.z; vPos.z += rayStep.z; tMax.z += tDelta.z; ha = 2;
         }
     }
     return result;
@@ -210,19 +208,16 @@ fn fs_main(in: VSOut, @builtin(front_facing) isFront: bool) -> FSOut {
 
     var out: FSOut;
 
-    for (var i = 0; i < MAX_CHUNK_STEPS; i++) {
-        if (u32(gPos.x) >= u32(gDims.x) || u32(gPos.y) >= u32(gDims.y) || u32(gPos.z) >= u32(gDims.z)) { break; }
+    for (var i = 0; i < MAX_CHUNK_STEPS; i += 1) {
+        if u32(gPos.x) >= u32(gDims.x) || u32(gPos.y) >= u32(gDims.y) || u32(gPos.z) >= u32(gDims.z) { break; }
 
         let ci    = u32(gPos.x) + u32(gPos.y) * u32(gDims.x) + u32(gPos.z) * u32(gDims.x) * u32(gDims.y);
         let cInfo = chunkGrid[ci];
 
         if cInfo.x != 0xFFFFFFFFu {
-            let bounds  = unpackAABB(cInfo.y & 0x3FFFFu);
-            let aabbMin = bounds[0];
-            let aabbMax = bounds[1];
-
-            let t0    = (vec3f(gPos) + vec3f(aabbMin) * 0.125 - camPosCU) * rayDirInv;
-            let t1    = (vec3f(gPos) + vec3f(aabbMax + vec3i(1)) * 0.125 - camPosCU) * rayDirInv;
+            let ab    = unpackAABB(cInfo.y & 0x3FFFFu);
+            let t0    = (vec3f(gPos) + vec3f(ab.mn) * 0.125 - camPosCU) * rayDirInv;
+            let t1    = (vec3f(gPos) + vec3f(ab.mx + vec3i(1)) * 0.125 - camPosCU) * rayDirInv;
             let tmin  = min(t0, t1);
             let tmax2 = max(t0, t1);
             let tNear = max(tmin.x, max(tmin.y, tmin.z));
@@ -230,7 +225,7 @@ fn fs_main(in: VSOut, @builtin(front_facing) isFront: bool) -> FSOut {
 
             if max(0.0, tNear) <= tFar {
                 let hAxis = select(select(2, 1, tmin.y >= tmin.z), 0, tmin.x >= tmin.y && tmin.x >= tmin.z);
-                let vHit  = rayMarchChunk(camPosCU, rayDirCU, gPos, cInfo.x * 512u, aabbMin, aabbMax, max(0.0, tNear), hAxis);
+                let vHit  = rayMarchChunk(camPosCU, rayDirCU, gPos, cInfo.x * 512u, ab.mn, ab.mx, max(0.0, tNear), hAxis);
 
                 if vHit.hit {
                     // Reconstruct world position from chunk-unit t

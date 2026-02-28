@@ -66,7 +66,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     let triCount = params.gridDims.w;
     var crossings: u32 = 0u;
 
-    for (var i = 0u; i < triCount; i++) {
+    for (var i = 0u; i < triCount; i += 1u) {
         let i0 = indices[i * 3u];
         let i1 = indices[i * 3u + 1u];
         let i2 = indices[i * 3u + 2u];
@@ -85,7 +85,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
 
         // Y at crossing
         let hitY = (1.0 - u - v) * ay + u * ccy + v * by;
-        if hitY > cy { crossings++; }
+        if hitY > cy { crossings += 1u; }
     }
 
     if crossings % 2u == 1u {
